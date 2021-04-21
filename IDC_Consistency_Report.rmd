@@ -1,0 +1,278 @@
+---
+title: "IDC Consistency Report"
+output:
+  html_document: default
+  pdf_document: default 
+---
+
+```{r setup, include=FALSE}
+
+# VARIABLES IDC Pilot 1 NAMAIN
+
+# STO
+# [B11] - External balance of goods and services
+# [B1G] - Value added, gross
+# [B1GQ] - Gross domestic product at market prices
+# [B2A3G] - Operating surplus and mixed income, gross
+# [B2G] - Operating surplus, gross
+# [B3G] - Mixed income, gross
+# [B5G] - Balance of primary incomes, gross / National income, gross
+# [B5N] - Balance of primary incomes, net / National income, net
+# [B6N] - Disposable income, net
+# [B8N] - Saving, net
+# [B9] - Net lending(+) / net borrowing (-)
+# [D9] - Capital transfers
+# [IN1] - Primary income
+# [IN21] - Secondary income: current transfers
+# [YA0] - Statistical discrepancy (expenditure approach)
+# [YA1] - Statistical discrepancy (production approach)
+# [YA2] - Statistical discrepancy (income approach)
+## 
+# PRICES
+# [L] - Chain linked volume
+# [LR] - Chain linked volume (rebased)
+# [Q] - Constant prices
+# [V] - Current prices
+# [Y] - Previous year prices
+# 
+# UNIT
+# [HW] - Hours worked
+# [PS] - Persons
+# [USD] - US dollar
+# [XDC] - Domestic currency (incl. conversion to current currency made using a fixed parity)
+
+# FREQ
+# REF_AREA
+# TIME_PERIOD
+# OBS_VALUE
+# REF_SECTOR
+
+library(eurostat)
+library(reshape2)
+library(rio)
+library(plyr)
+library(dplyr)
+library(rsdmx)
+library(tidyr)
+library(stringr)
+library(ecb)
+library(IMFData)
+library(OECD)
+library(DT)
+
+FREQ_01="A"
+FREQ_02="Q"
+
+REF_SECTOR_01="S1"
+
+STO_01="B1GQ"
+STO_01imf="NGDP_XDC"
+STO_01oecd = "B1_GA"
+STO_02="EMP"
+STO_03="UNE"
+
+UNIT_01="XDC"
+#domestic currency
+UNIT_02="PS"
+#persons
+
+PRICES_01="V"
+PRICES_01estat="CP_MNAC"
+
+REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
+
+TIME_PERIOD <- 2009:2019
+
+#---------------------------------------------------------------------------------------
+#UNSD
+
+# https://data.un.org/SDMXBrowser/start#
+
+# https://data.un.org/ws/rest/data/ESTAT,NA_MAIN,1.9/A.N.CR+DE+EE+ES+FR+IL+JP+RU.W2..._Z+B.B1GQ.....V./ALL/?detail=full&startPeriod=2009-01-01&endPeriod=2018-12-31&dimensionAtObservation=TIME_PERIOD
+
+# extraction for defined countries, B1GQ and V prices
+
+UNSD.start.period <- paste0(TIME_PERIOD[1], "-01-01")
+UNSD.end.period <- paste0(TIME_PERIOD[length(TIME_PERIOD)], "-12-31")
+
+myUrl <- paste0("https://data.un.org/ws/rest/data/ESTAT,NA_MAIN,1.9/A.N......B1GQ.....V./ALL/?detail=full&startPeriod=", UNSD.start.period, "&endPeriod=", UNSD.end.period, "&dimensionAtObservation=TIME_PERIOD")
+UNSD <- as.data.frame(readSDMX(myUrl))
+
+UNSD <- UNSD[, c("STO","REF_AREA", "obsTime", "obsValue")]
+colnames(UNSD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
+UNSD$SOURCE <- "UNSD"
+
+#---------------------------------------------------------------------------------------
+#Eurostat
+
+naida_10_gdp <- get_eurostat ("naida_10_gdp", time_format = "num")
+
+ESTAT <- naida_10_gdp[(naida_10_gdp$unit == PRICES_01estat & naida_10_gdp$na_item == STO_01 & naida_10_gdp$time %in% TIME_PERIOD), ]
+ESTAT <- ESTAT[, c("na_item","geo","time","values")]
+colnames(ESTAT) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
+ESTAT$SOURCE <- "ESTAT"
+
+ESTAT$REF_AREA <- mapvalues(ESTAT$REF_AREA, from=REF.AREA.map$EU, to=REF.AREA.map$Other)
+
+#---------------------------------------------------------------------------------------
+#ECB
+
+filter <- list(startPeriod = TIME_PERIOD[1], endPeriod = TIME_PERIOD[length(TIME_PERIOD)])
+
+# for defined countries and STO
+keyEU <- paste0("MNA.A.N..W2.S1.S1.B.B1GQ._Z._Z._Z.XDC.V.N")
+EU <- get_data(keyEU, filter)
+
+# for defined countries and STO
+keynonEU <- paste0("IDCM.A.N..W2.S1.S1.B.B1GQ._Z._Z._Z.XDC.V.N")
+nonEU <- get_data(keynonEU, filter)
+
+ECB <-rbind(EU,nonEU)
+ECB <- ECB[,c("sto", "ref_area", "obstime", "obsvalue")]
+colnames(ECB) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
+ECB$SOURCE <- "ECB"
+
+#dividing value in XDC domestic currency for CR by 1000
+#ECB1$OBS_VALUE[ECB1$REF_AREA == "CR"] <- ECB1$OBS_VALUE[ECB1$REF_AREA == "CR"]/1000
+
+#---------------------------------------------------------------------------------------
+#IMF
+
+databaseID <- "IFS"
+startdate <- paste0(TIME_PERIOD[1], "-01-01")
+enddate <- paste0(TIME_PERIOD[length(TIME_PERIOD)], "-12-31")
+checkquery = FALSE
+
+queryfilter <- list(CL_FREA = "A", CL_AREA_IFS = "", CL_INDICATOR_IFS = STO_01imf)
+
+IMF <- CompactDataMethod(databaseID, queryfilter, startdate, enddate, checkquery,tidy = TRUE)
+IMF <- IMF[, c("@INDICATOR", "@REF_AREA", "@TIME_PERIOD", "@OBS_VALUE")]
+
+colnames(IMF) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE") 
+IMF$OBS_VALUE <- as.numeric(IMF$OBS_VALUE)
+IMF$STO <- str_replace_all(IMF$STO,"NGDP_XDC", "B1GQ")
+IMF$SOURCE <- "IMF"
+
+#---------------------------------------------------------------------------------------
+# OECD
+
+datasetGDP <- "SNA_TABLE1"
+
+filter_listGDP <- list("", "B1_GA", "C")
+
+OECD <- get_dataset(dataset = datasetGDP, filter = filter_listGDP, start_time = TIME_PERIOD[1], end_time = TIME_PERIOD[length(TIME_PERIOD)])
+
+OECD <- OECD[, c("TRANSACT", "LOCATION", "obsTime", "obsValue")]
+colnames(OECD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
+
+OECD$STO <- str_replace_all(OECD$STO,STO_01oecd, STO_01)
+OECD$REF_AREA <- mapvalues(OECD$REF_AREA, from=REF.AREA.map$OECD, to=REF.AREA.map$Other)
+OECD$SOURCE <- "OECD"
+
+#--------------------------------------------------------------------------------------
+#Summary table
+
+overview <- rbind(UNSD, IMF, ESTAT, ECB, OECD)
+overview <- overview[!duplicated(overview),]
+
+# - Get which organisation is the Reference (change the country code if necessary)
+overview <- merge (overview, REF.AREA.map[, c("Other", "Owner")], by.x = "REF_AREA", by.y = "Other", all.x=TRUE)
+
+# Set rounded figure to ease the presentation 
+overview$OBS_VALUE <- round(overview$OBS_VALUE, digits = 0)
+
+overview <- merge(overview, overview[, c("REF_AREA", "STO", "TIME_PERIOD", "OBS_VALUE", "SOURCE")], by.x = c("REF_AREA", "STO", "TIME_PERIOD", "Owner"), by.y = c("REF_AREA", "STO", "TIME_PERIOD", "SOURCE"), all.x = TRUE)
+
+colnames(overview) <- gsub("OBS_VALUE.x", "OBS_VALUE", colnames(overview))
+colnames(overview) <- gsub("OBS_VALUE.y", "REF_VALUE", colnames(overview))
+
+overview[is.na(overview)]<-NaN
+
+#Calculate the difference in percentage point
+overview$Diff <- abs(overview$OBS_VALUE - overview$REF_VALUE)
+overview$Diff.Per <- abs(overview$OBS_VALUE - overview$REF_VALUE)/overview$REF_VALUE*100
+overview$Diff.Per <- round(overview$Diff.Per, digits = 2)
+
+overview <- overview[overview$Owner != "NaN",]
+
+
+#
+# Added by Thierry to keep the real figures 
+#
+Details_withPercent <- spread(overview[,c("REF_AREA", "STO", "TIME_PERIOD", "Owner", "SOURCE", "REF_VALUE", "OBS_VALUE")], SOURCE, OBS_VALUE) %>%
+  mutate(IMF_Diff= abs(IMF-REF_VALUE)/REF_VALUE*100, ESTAT_Diff = abs(ESTAT-REF_VALUE)/REF_VALUE*100, OECD_Diff = abs(OECD-REF_VALUE)/REF_VALUE*100, ECB_Diff = abs(ECB-REF_VALUE)/REF_VALUE*100, UNSD_Diff = abs(UNSD-REF_VALUE)/REF_VALUE*100 )
+Details_withPercent[, c("IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %")] <- round(Details_withPercent[, c(11, 12, 13, 14, 15)], digits=1)
+
+table <- spread(overview[,c("REF_AREA", "STO", "TIME_PERIOD", "Owner", "SOURCE", "REF_VALUE", "Diff.Per")], SOURCE, Diff.Per)
+
+table.summary <- table %>%
+  group_by(REF_AREA, STO, Owner) %>%
+  summarise(IMF.mean = mean(IMF), ESTAT.mean = mean(ESTAT), OECD.mean = mean(OECD), ECB.mean = mean(ECB), UNSD.mean = mean(UNSD), IMF = mean(IMF, na.rm = TRUE), ESTAT = mean(ESTAT, na.rm = TRUE), OECD = mean(OECD, na.rm = TRUE), ECB = mean(ECB, na.rm = TRUE), UNSD = mean(UNSD, na.rm = TRUE))  
+
+
+
+table.summary <- as.data.frame(table.summary)
+ncol.table.summary <- ncol(table.summary)-5
+
+for(i in (1:ncol(table))) table[is.nan(table[,i]),i] <- "NaN"
+for(i in (1:ncol.table.summary)) table.summary[is.nan(table.summary[,i]),i] <- -1
+
+table.summary[, c("IMF", "ESTAT", "OECD", "ECB", "UNSD")] <- round(table.summary[, c("IMF", "ESTAT", "OECD", "ECB", "UNSD")], digits=1)
+
+
+
+write.csv(table.summary, "Summary.csv")
+
+
+```
+
+This report highlights whether there are differences in the data published by SDMX Sponsor organisations for the time series covered by the IDC project.
+
+#Summary by country
+
+The table below shows a summary of the differences in the data published by SDMX Sponsor Organisation for each country covered by the IDC project. For each country, the table shows which SDMX Sponsor is supposed to provide the reference date. In the columns marked "IMF", "ECB", "ESTAT", "UNSD" and "OECD" the report shows the average percentual difference between the data published by each organisation and the data published by the reference organsiation. If a cell is empty, it means that the concerned organsiation does not publish any data for the country in question.
+
+The cells are in addition colour-coded as follows:
+
+* <span style="background-color: lightblue">Cells in lightblue</span> indicate that, compared to the reference organisation, the concerned organisation is missing at least one observation for the country in question.
+* <span style="background-color: grey">Cells in grey</span> indicate that for at least one observation the concerned organisation has data for the country in question whereas the reference organisation has no data.
+* <span style="background-color: magenta">Cells in magenta</span> indicate that the concerned organisation and reference organisation both have data for the whole time series, but that the data differs for at least one observation.
+
+The data have been extracted :
+```{r summary, echo=FALSE}
+date()
+datatable(table.summary, rownames = FALSE, options = list(
+  columnDefs = list(list(targets = c(3,4,5,6,7), visible = FALSE)))) %>% 
+  formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), background = styleInterval(c(1), c("white", "magenta"))) %>%
+  formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), valueColumns = c("IMF.mean", "ESTAT.mean", "OECD.mean", "ECB.mean", "UNSD.mean"), background = styleEqual(c(NA), c("lightblue"))) %>% 
+  formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), valueColumns = c("IMF.mean", "ESTAT.mean", "OECD.mean", "ECB.mean", "UNSD.mean"), background = styleEqual(c(-1), c("gray"))) 
+
+
+```
+
+#Details
+
+The table below provides a more detailed view of the situation. For every observation in the time series, the table shows how the different sources compare to the reference data published by the lead organisation for the country concerned.
+
+```{r details, echo=FALSE}
+# datatable(KEEP_DETAILS, rownames = FALSE) %>% 
+#
+#  formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), background = styleInterval(c(0.001), c("white",  "magenta")))
+
+#IUnsucessful trial 
+# mutate (IMF = ifelse (IMF = REF_VALUE, 
+#                        paste0('<span style="background-color:#000000">', IMF, '</span>'),
+#                        paste0('<span style="background-color:#ccccff">', IMF, '</span>') ) ) %>%
+
+
+datatable(Details_withPercent[,c("REF_AREA","TIME_PERIOD","Owner","REF_VALUE","IMF", "ESTAT", "OECD", "ECB", "UNSD","IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %")], rownames = FALSE) %>% 
+    formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), background = styleInterval(c(0.001), c("magenta",  "white"))) %>%
+    formatStyle(columns = c("IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleInterval(c(1), c("white","magenta"))) %>% 
+    formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c(NA), c("lightblue"))) %>% 
+  formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c("NaN"), c("gray")))
+
+
+REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
+           
+
+```
