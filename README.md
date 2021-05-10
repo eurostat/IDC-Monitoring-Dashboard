@@ -1,4 +1,12 @@
 # IDC-Monitoring-Dashboard
+
+20210510 - Version correcting some issues and giving some improvements :
+  The monitoring period is now 2010-2020. 
+	The OECD is providing the GDP for the expenditure approach.
+	The text explaining what the light blue means was reviewed. 
+	The name of the country was included in the CSV file (not in interface as this would prevent the filtering).
+  The technical access to Eurostat output was reviewed. 
+
 20210420 - Version presented to the MES-OG meeting 20210421
 
 The dashboard on International Datasharing Cooperation (TFIDC) is launch using a R program. 
