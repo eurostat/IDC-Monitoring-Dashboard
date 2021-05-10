@@ -259,10 +259,12 @@ for(i in (1:ncol(table))) table[is.nan(table[,i]),i] <- "NaN"
 for(i in (1:ncol.table.summary)) table.summary[is.nan(table.summary[,i]),i] <- -1
 
 table.summary[, c("IMF", "ESTAT", "OECD", "ECB", "UNSD")] <- round(table.summary[, c("IMF", "ESTAT", "OECD", "ECB", "UNSD")], digits=1)
+ 
+a<- REF.AREA.map[c(2,5)]
+b<-table.summary
 
-
-
-write.csv(table.summary, "Summary.csv")
+to_save <- merge (a,b)
+write.csv(to_save, "Summary.csv")
 
 
 ```
@@ -312,8 +314,8 @@ datatable(Details_withPercent[,c("REF_AREA","TIME_PERIOD","Owner","REF_VALUE","I
     formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c(NA), c("lightblue"))) %>% 
   formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c("NaN"), c("gray")))
 
-
-REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
+# Not useful I believe 
+# REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
            
 
 ```
