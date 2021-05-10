@@ -1,4 +1,4 @@
----
+install---
 title: "IDC Consistency Report"
 output:
   html_document: default
@@ -6,6 +6,11 @@ output:
 ---
 
 ```{r setup, include=FALSE}
+
+#
+# 2021/05/10 : change the reference period from 2009-2019 to 2010-2020. 
+#              modify the request to OECD to get the GDP from expenditure side   
+#              technical change in the components used to get data from Eurostat 
 
 # VARIABLES IDC Pilot 1 NAMAIN
 
@@ -46,8 +51,9 @@ output:
 # TIME_PERIOD
 # OBS_VALUE
 # REF_SECTOR
-
-library(eurostat)
+#suggested by Matyas not use eurostat but restatapi but finally rsdmx is used. 
+#library(restatapi)
+#library(eurostat)
 library(reshape2)
 library(rio)
 library(plyr)
@@ -67,7 +73,9 @@ REF_SECTOR_01="S1"
 
 STO_01="B1GQ"
 STO_01imf="NGDP_XDC"
-STO_01oecd = "B1_GA"
+#expenditure approach in OECD is B1_GE Output approach is B1_GA
+#what is send to us is the B1_GE
+STO_01oecd = "B1_GE"
 STO_02="EMP"
 STO_03="UNE"
 
@@ -81,7 +89,8 @@ PRICES_01estat="CP_MNAC"
 
 REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
 
-TIME_PERIOD <- 2009:2019
+TIME_PERIOD <- 2010:2020 #pay attention for new eurostat extraction 
+
 
 #---------------------------------------------------------------------------------------
 #UNSD
@@ -102,17 +111,39 @@ UNSD <- UNSD[, c("STO","REF_AREA", "obsTime", "obsValue")]
 colnames(UNSD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 UNSD$SOURCE <- "UNSD"
 
+myString <- "UNSD data have been retrieved "
+message ( myString)
+
 #---------------------------------------------------------------------------------------
 #Eurostat
 
-naida_10_gdp <- get_eurostat ("naida_10_gdp", time_format = "num")
+# !!!! First extraction using eurostat R package
 
-ESTAT <- naida_10_gdp[(naida_10_gdp$unit == PRICES_01estat & naida_10_gdp$na_item == STO_01 & naida_10_gdp$time %in% TIME_PERIOD), ]
-ESTAT <- ESTAT[, c("na_item","geo","time","values")]
+# naida_10_gdp <- get_eurostat ("naida_10_gdp", time_format = "num")
+# 
+# ESTAT <- naida_10_gdp[(naida_10_gdp$unit == PRICES_01estat & naida_10_gdp$na_item == STO_01 & naida_10_gdp$time %in% TIME_PERIOD), ]
+
+# !!! Second method using the restatapi package 
+
+# ESTAT <- restatapi::get_eurostat_data("naida_10_gdp",filters=c("B1GQ","CP_MNAC"),date_filter="2010:2020",verbose=T) 
+# 
+
+# !!!! Final method using the standard rsdmx package 
+# note that URL is http and not https 
+
+estatUrl <-  paste0("http://ec.europa.eu/eurostat/SDMX/diss-web/rest/data/naida_10_gdp/.CP_MNAC.B1GQ./?startPeriod=",TIME_PERIOD[1],"&endPeriod=",TIME_PERIOD[length(TIME_PERIOD)])
+estatUrl
+ESTAT <- as.data.frame(readSDMX(estatUrl))
+
+ESTAT <- ESTAT[, c("NA_ITEM","GEO","obsTime","obsValue")]
 colnames(ESTAT) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 ESTAT$SOURCE <- "ESTAT"
 
 ESTAT$REF_AREA <- mapvalues(ESTAT$REF_AREA, from=REF.AREA.map$EU, to=REF.AREA.map$Other)
+
+
+myString <- "ESTAT data have been retrieved "
+message ( myString)
 
 #---------------------------------------------------------------------------------------
 #ECB
@@ -131,6 +162,9 @@ ECB <-rbind(EU,nonEU)
 ECB <- ECB[,c("sto", "ref_area", "obstime", "obsvalue")]
 colnames(ECB) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 ECB$SOURCE <- "ECB"
+
+myString <- "ECB data have been retrieved "
+message ( myString)
 
 #dividing value in XDC domestic currency for CR by 1000
 #ECB1$OBS_VALUE[ECB1$REF_AREA == "CR"] <- ECB1$OBS_VALUE[ECB1$REF_AREA == "CR"]/1000
@@ -153,12 +187,15 @@ IMF$OBS_VALUE <- as.numeric(IMF$OBS_VALUE)
 IMF$STO <- str_replace_all(IMF$STO,"NGDP_XDC", "B1GQ")
 IMF$SOURCE <- "IMF"
 
+myString <- "IMF data have been retrieved "
+print ( myString)
+
 #---------------------------------------------------------------------------------------
 # OECD
 
 datasetGDP <- "SNA_TABLE1"
 
-filter_listGDP <- list("", "B1_GA", "C")
+filter_listGDP <- list("", "B1_GE", "C")
 
 OECD <- get_dataset(dataset = datasetGDP, filter = filter_listGDP, start_time = TIME_PERIOD[1], end_time = TIME_PERIOD[length(TIME_PERIOD)])
 
@@ -168,6 +205,10 @@ colnames(OECD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 OECD$STO <- str_replace_all(OECD$STO,STO_01oecd, STO_01)
 OECD$REF_AREA <- mapvalues(OECD$REF_AREA, from=REF.AREA.map$OECD, to=REF.AREA.map$Other)
 OECD$SOURCE <- "OECD"
+
+myString <- "OECD data have been retrieved "
+message ( myString)
+
 
 #--------------------------------------------------------------------------------------
 #Summary table
@@ -234,7 +275,7 @@ The table below shows a summary of the differences in the data published by SDMX
 
 The cells are in addition colour-coded as follows:
 
-* <span style="background-color: lightblue">Cells in lightblue</span> indicate that, compared to the reference organisation, the concerned organisation is missing at least one observation for the country in question.
+* <span style="background-color: lightblue">Cells in lightblue</span> indicate that, the concerned organisation is missing at least one observation for the country in question compare to organisation having longuest series.
 * <span style="background-color: grey">Cells in grey</span> indicate that for at least one observation the concerned organisation has data for the country in question whereas the reference organisation has no data.
 * <span style="background-color: magenta">Cells in magenta</span> indicate that the concerned organisation and reference organisation both have data for the whole time series, but that the data differs for at least one observation.
 
