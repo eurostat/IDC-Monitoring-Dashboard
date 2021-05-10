@@ -141,7 +141,9 @@ ESTAT$SOURCE <- "ESTAT"
 
 ESTAT$REF_AREA <- mapvalues(ESTAT$REF_AREA, from=REF.AREA.map$EU, to=REF.AREA.map$Other)
 
-
+# The output as change we do not want values when there is nothing in the extraction
+ESTAT <- filter(ESTAT,!is.na(OBS_VALUE))
+#
 myString <- "ESTAT data have been retrieved "
 message ( myString)
 
@@ -315,7 +317,7 @@ datatable(Details_withPercent[,c("REF_AREA","TIME_PERIOD","Owner","REF_VALUE","I
   formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c("NaN"), c("gray")))
 
 # Not useful I believe 
-# REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
+#REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
            
 
 ```
