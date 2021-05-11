@@ -7,6 +7,9 @@ output:
 
 ```{r setup, include=FALSE}
 
+# 2021/05/11 : Add a filter to each extraction of indidual organisation to remove the empty cell
+#              If you are not doing this the colouring of the cell is wrong (noted first with Eurostat 
+#              but existed also with UNSD, IMF)
 #
 # 2021/05/10 : change the reference period from 2009-2019 to 2010-2020. 
 #              modify the request to OECD to get the GDP from expenditure side   
@@ -111,6 +114,10 @@ UNSD <- UNSD[, c("STO","REF_AREA", "obsTime", "obsValue")]
 colnames(UNSD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 UNSD$SOURCE <- "UNSD"
 
+# To get the right coloring we do not want NA values in the final result
+UNSD <- filter(UNSD,!is.na(OBS_VALUE))
+#
+
 myString <- "UNSD data have been retrieved "
 message ( myString)
 
@@ -141,7 +148,7 @@ ESTAT$SOURCE <- "ESTAT"
 
 ESTAT$REF_AREA <- mapvalues(ESTAT$REF_AREA, from=REF.AREA.map$EU, to=REF.AREA.map$Other)
 
-# The output as change we do not want values when there is nothing in the extraction
+# To get the right coloring we do not want NA values in the final result
 ESTAT <- filter(ESTAT,!is.na(OBS_VALUE))
 #
 myString <- "ESTAT data have been retrieved "
@@ -164,6 +171,10 @@ ECB <-rbind(EU,nonEU)
 ECB <- ECB[,c("sto", "ref_area", "obstime", "obsvalue")]
 colnames(ECB) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 ECB$SOURCE <- "ECB"
+
+# To get the right coloring we do not want NA values in the final result
+ECB <- filter(ECB,!is.na(OBS_VALUE))
+#
 
 myString <- "ECB data have been retrieved "
 message ( myString)
@@ -189,6 +200,10 @@ IMF$OBS_VALUE <- as.numeric(IMF$OBS_VALUE)
 IMF$STO <- str_replace_all(IMF$STO,"NGDP_XDC", "B1GQ")
 IMF$SOURCE <- "IMF"
 
+# To get the right coloring we do not want NA values in the final result
+IMF <- filter(IMF,!is.na(OBS_VALUE))
+#
+
 myString <- "IMF data have been retrieved "
 print ( myString)
 
@@ -207,6 +222,10 @@ colnames(OECD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
 OECD$STO <- str_replace_all(OECD$STO,STO_01oecd, STO_01)
 OECD$REF_AREA <- mapvalues(OECD$REF_AREA, from=REF.AREA.map$OECD, to=REF.AREA.map$Other)
 OECD$SOURCE <- "OECD"
+
+# To get the right coloring we do not want NA values in the final result
+OECD <- filter(OECD,!is.na(OBS_VALUE))
+#
 
 myString <- "OECD data have been retrieved "
 message ( myString)
