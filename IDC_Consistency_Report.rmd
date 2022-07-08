@@ -7,6 +7,9 @@ output:
 
 ```{r setup, include=FALSE}
 
+# 2022/07/08 : UNSD is using the UNIT_MULT from SDMX when presenting their data. We should convert in Mio to compare with other organisations.
+#              (see Modifications lines 119 - 123 ) 
+#
 # 2021/06/25 : Ass the country name in the summary CSV file. 
 #
 # 2021/05/11 : Add a filter to each extraction of indidual organisation to remove the empty cell 
@@ -95,7 +98,7 @@ PRICES_01estat="CP_MNAC"
 
 REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
 
-TIME_PERIOD <- 2010:2020 #pay attention for new eurostat extraction 
+TIME_PERIOD <- 2010:2021 #pay attention for new eurostat extraction 
 
 
 #---------------------------------------------------------------------------------------
@@ -112,6 +115,12 @@ UNSD.end.period <- paste0(TIME_PERIOD[length(TIME_PERIOD)], "-12-31")
 
 myUrl <- paste0("https://data.un.org/ws/rest/data/ESTAT,NA_MAIN,1.9/A.N......B1GQ.....V./ALL/?detail=full&startPeriod=", UNSD.start.period, "&endPeriod=", UNSD.end.period, "&dimensionAtObservation=TIME_PERIOD")
 UNSD <- as.data.frame(readSDMX(myUrl))
+
+# PA <- filter(UNSD, REF_AREA == "PA")
+# UNSD is using the UNIT_MULT so we have to convert in Mio to get the right comparison point
+UNSD$UNIT_MULT_NUMBER <- strtoi (UNSD$UNIT_MULT)
+UNSD$obsValue <- UNSD$obsValue * (10 ** UNSD$UNIT_MULT_NUMBER) / (10 ** 6)
+
 
 UNSD <- UNSD[, c("STO","REF_AREA", "obsTime", "obsValue")]
 colnames(UNSD) <- c("STO","REF_AREA", "TIME_PERIOD", "OBS_VALUE")
@@ -165,6 +174,8 @@ filter <- list(startPeriod = TIME_PERIOD[1], endPeriod = TIME_PERIOD[length(TIME
 # for defined countries and STO
 keyEU <- paste0("MNA.A.N..W2.S1.S1.B.B1GQ._Z._Z._Z.XDC.V.N")
 EU <- get_data(keyEU, filter)
+#temporary Cleaning of ECB
+EU <- filter(EU, ref_area!="GB")
 
 # for defined countries and STO
 keynonEU <- paste0("IDCM.A.N..W2.S1.S1.B.B1GQ._Z._Z._Z.XDC.V.N")
@@ -178,6 +189,9 @@ ECB$SOURCE <- "ECB"
 # To get the right coloring we do not want NA values in the final result
 ECB <- filter(ECB,!is.na(OBS_VALUE))
 #
+
+
+
 
 myString <- "ECB data have been retrieved "
 message ( myString)
@@ -296,6 +310,11 @@ to_save <- merge (a,b)
 write.csv(to_save, "Summary.csv")
 
 
+b<-Details_withPercent
+to_save <- merge (a,b)
+write.csv(to_save, "Details_withPercent.csv")
+
+
 ```
 
 This report highlights whether there are differences in the data published by SDMX Sponsor organisations for the time series covered by the IDC project.
@@ -337,11 +356,13 @@ The table below provides a more detailed view of the situation. For every observ
 #                        paste0('<span style="background-color:#ccccff">', IMF, '</span>') ) ) %>%
 
 
+
 datatable(Details_withPercent[,c("REF_AREA","TIME_PERIOD","Owner","REF_VALUE","IMF", "ESTAT", "OECD", "ECB", "UNSD","IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %")], rownames = FALSE) %>% 
     formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD"), background = styleInterval(c(0.001), c("magenta",  "white"))) %>%
     formatStyle(columns = c("IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleInterval(c(1), c("white","magenta"))) %>% 
     formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c(NA), c("lightblue"))) %>% 
   formatStyle(columns = c("IMF", "ESTAT", "OECD", "ECB", "UNSD", "IMF %", "ESTAT %", "OECD %", "ECB %", "UNSD %"), background = styleEqual(c("NaN"), c("gray")))
+
 
 # Not useful I believe 
 #REF.AREA.map <- read.csv("REF_AREA_Map.csv", sep = ";", colClasses = "character", na.strings = "")
